@@ -64,27 +64,50 @@ exports.handler = async (event) => {
       ll: `${lat},${lon}`,
       radius: String(radius),
       limit: '50',
-      sort: 'DISTANCE',
-      fields: 'fsq_id,name,location,categories,hours,rating,photos,tel,website,distance'
+      sort: 'DISTANCE'
     });
     if (query) params.set('query', query);
 
-    const r = await fetch('https://api.foursquare.com/v3/places/search?' + params.toString(), {
-      headers: { 'Authorization': KEY, 'Accept': 'application/json' }
-    });
-    if (!r.ok) {
-      const body = await r.text();
-      return { statusCode: 200, headers: cors, body: JSON.stringify({ ok: false, reason: 'http_' + r.status, detail: body.slice(0, 200), places: [] }) };
+    // Foursquare changed its API. Try the NEW Places API first
+    // (places-api.foursquare.com + Bearer + version header),
+    // then fall back to the LEGACY one (api.foursquare.com/v3 + raw key).
+    const attempts = [
+      {
+        url: 'https://places-api.foursquare.com/places/search?' + params.toString(),
+        headers: {
+          'Authorization': 'Bearer ' + KEY,
+          'X-Places-Api-Version': '2025-06-17',
+          'Accept': 'application/json'
+        }
+      },
+      {
+        url: 'https://api.foursquare.com/v3/places/search?' + params.toString(),
+        headers: { 'Authorization': KEY, 'Accept': 'application/json' }
+      }
+    ];
+
+    let j = null, lastStatus = 0, lastBody = '';
+    for (const a of attempts) {
+      const r = await fetch(a.url, { headers: a.headers });
+      if (r.ok) { j = await r.json(); break; }
+      lastStatus = r.status;
+      lastBody = (await r.text()).slice(0, 200);
     }
-    const j = await r.json();
-    const places = (j.results || []).map(it => {
+    if (!j) {
+      return { statusCode: 200, headers: cors, body: JSON.stringify({ ok: false, reason: 'http_' + lastStatus, detail: lastBody, places: [] }) };
+    }
+
+    const results = j.results || j.places || [];
+    const places = results.map(it => {
       const { cat, ic } = mapCategory(it.categories);
       const loc = it.location || {};
       const address = [loc.address, loc.locality].filter(Boolean).join(', ') || loc.formatted_address || '';
       const photos = (it.photos || []).slice(0, 5).map(ph => `${ph.prefix}800x600${ph.suffix}`);
       const hours = (it.hours && it.hours.display) || '';
+      const fid = it.fsq_place_id || it.fsq_id || '';
+      const g = it.geocodes && it.geocodes.main;
       return {
-        id: 'fsq-' + it.fsq_id,
+        id: 'fsq-' + fid,
         place: it.name || '',
         address,
         cat, ic,
@@ -93,8 +116,8 @@ exports.handler = async (event) => {
         photos,
         website: it.website || '',
         tel: it.tel || '',
-        lat: (it.geocodes && it.geocodes.main && it.geocodes.main.latitude) || loc.lat || lat,
-        lon: (it.geocodes && it.geocodes.main && it.geocodes.main.longitude) || loc.lon || lon
+        lat: (g && g.latitude) || (loc.lat) || lat,
+        lon: (g && g.longitude) || (loc.lon) || lon
       };
     }).filter(x => x.place);
 
