@@ -52,6 +52,20 @@ exports.handler = async (event) => {
   if (!KEY) return { statusCode: 200, headers: cors, body: JSON.stringify({ ok: false, reason: 'no_key', places: [] }) };
 
   const p = event.queryStringParameters || {};
+
+  // Safe diagnostic: /api/fsq?debug=1 shows key length + edges WITHOUT revealing the key.
+  if (p.debug === '1') {
+    const k = KEY || '';
+    return { statusCode: 200, headers: cors, body: JSON.stringify({
+      key_present: !!k,
+      key_length: k.length,
+      starts_with: k.slice(0, 2),
+      ends_with: k.slice(-2),
+      has_leading_space: k !== k.trimStart(),
+      has_trailing_space: k !== k.trimEnd()
+    }) };
+  }
+
   const lat = parseFloat(p.lat), lon = parseFloat(p.lon);
   const radius = Math.min(parseInt(p.radius || '8000', 10), 100000);
   const query = (p.query || '').trim();
