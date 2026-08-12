@@ -1,0 +1,28 @@
+[build]
+  functions = "netlify/functions"
+  publish = "."
+
+[[redirects]]
+  from = "/api/places"
+  to = "/.netlify/functions/places"
+  status = 200
+
+[[redirects]]
+  from = "/api/geocode"
+  to = "/.netlify/functions/geocode"
+  status = 200
+
+[[redirects]]
+  from = "/api/photos"
+  to = "/.netlify/functions/photos"
+  status = 200
+
+[[redirects]]
+  from = "/api/yandex"
+  to = "/.netlify/functions/yandex"
+  status = 200
+
+[[redirects]]
+  from = "/api/fsq"
+  to = "/.netlify/functions/fsq"
+  status = 200
