@@ -101,14 +101,16 @@ exports.handler = async (event) => {
     ];
 
     let j = null, lastStatus = 0, lastBody = '';
+    const debugInfo = [];
     for (const a of attempts) {
       const r = await fetch(a.url, { headers: a.headers });
       if (r.ok) { j = await r.json(); break; }
       lastStatus = r.status;
-      lastBody = (await r.text()).slice(0, 200);
+      lastBody = (await r.text()).slice(0, 160);
+      debugInfo.push({ host: a.url.split('/')[2], status: r.status, body: lastBody });
     }
     if (!j) {
-      return { statusCode: 200, headers: cors, body: JSON.stringify({ ok: false, reason: 'http_' + lastStatus, detail: lastBody, places: [] }) };
+      return { statusCode: 200, headers: cors, body: JSON.stringify({ ok: false, reason: 'http_' + lastStatus, attempts: debugInfo, places: [] }) };
     }
 
     const results = j.results || j.places || [];
